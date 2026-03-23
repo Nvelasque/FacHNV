@@ -117,7 +117,7 @@ public class FacturaPdfService
                 {
                     columns.ConstantColumn(25);    // #
                     columns.ConstantColumn(65);    // Código
-                    columns.RelativeColumn(4);     // Descripción (mucho más ancha)
+                    columns.RelativeColumn(4);     // Descripción 
                     columns.ConstantColumn(35);    // Cant
                     columns.ConstantColumn(75);    // P. Unit
                     columns.ConstantColumn(60);    // Desc

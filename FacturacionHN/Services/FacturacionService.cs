@@ -33,13 +33,11 @@ public class FacturacionService : IFacturacionService
         try
         {
             using var reader = await cmd.ExecuteReaderAsync();
-            if (!await reader.ReadAsync())
-                throw new InvalidOperationException("No se pudo crear la factura.");
+            if (!await reader.ReadAsync()) throw new InvalidOperationException("No se pudo crear la factura.");
             var factura = MapFacturaFromReader(reader);
             await reader.NextResultAsync();
             var detalles = new List<DetalleFacturaDto>();
             while (await reader.ReadAsync())
-            {
                 detalles.Add(new DetalleFacturaDto(
                     reader.GetInt32(reader.GetOrdinal("Id")),
                     reader.GetString(reader.GetOrdinal("ProductoCodigo")),
@@ -50,7 +48,6 @@ public class FacturacionService : IFacturacionService
                     reader.GetDecimal(reader.GetOrdinal("SubTotal")),
                     reader.GetDecimal(reader.GetOrdinal("ISV")),
                     reader.GetDecimal(reader.GetOrdinal("Total"))));
-            }
             return factura with { Detalles = detalles };
         }
         catch (SqlException ex) { throw new InvalidOperationException(ex.Message); }
@@ -69,17 +66,12 @@ public class FacturacionService : IFacturacionService
         try
         {
             using var reader = await cmd.ExecuteReaderAsync();
-            if (!await reader.ReadAsync())
-                throw new InvalidOperationException("Factura no encontrada.");
+            if (!await reader.ReadAsync()) throw new InvalidOperationException("Factura no encontrada.");
             var factura = MapFacturaFromReader(reader);
-            var detalles = await _db.DetalleFacturas
-                .Include(d => d.Producto)
+            var detalles = await _db.DetalleFacturas.Include(d => d.Producto)
                 .Where(d => d.FacturaId == id)
-                .Select(d => new DetalleFacturaDto(
-                    d.Id, d.Producto.Codigo, d.Producto.Descripcion,
-                    d.Cantidad, d.PrecioUnitario, d.Descuento,
-                    d.SubTotal, d.ISV, d.Total))
-                .ToListAsync();
+                .Select(d => new DetalleFacturaDto(d.Id, d.Producto.Codigo, d.Producto.Descripcion,
+                    d.Cantidad, d.PrecioUnitario, d.Descuento, d.SubTotal, d.ISV, d.Total)).ToListAsync();
             return factura with { Detalles = detalles };
         }
         catch (SqlException ex) { throw new InvalidOperationException(ex.Message); }
@@ -88,51 +80,37 @@ public class FacturacionService : IFacturacionService
 
     public async Task<FacturaDto?> ObtenerFacturaAsync(int empresaId, int id)
     {
-        var f = await _db.Facturas
-            .Include(f => f.Empresa).Include(f => f.CAI)
-            .Include(f => f.Cliente)
-            .Include(f => f.Detalles).ThenInclude(d => d.Producto)
+        var f = await _db.Facturas.Include(f => f.Empresa).Include(f => f.CAI)
+            .Include(f => f.Cliente).Include(f => f.Detalles).ThenInclude(d => d.Producto)
             .FirstOrDefaultAsync(f => f.Id == id && f.EmpresaId == empresaId);
         return f is null ? null : MapFacturaToDto(f);
     }
 
     public async Task<List<FacturaDto>> ListarFacturasAsync(int empresaId, DateTime? desde, DateTime? hasta)
     {
-        var query = _db.Facturas
-            .Include(f => f.Empresa).Include(f => f.CAI)
-            .Include(f => f.Cliente)
-            .Include(f => f.Detalles).ThenInclude(d => d.Producto)
+        var query = _db.Facturas.Include(f => f.Empresa).Include(f => f.CAI)
+            .Include(f => f.Cliente).Include(f => f.Detalles).ThenInclude(d => d.Producto)
             .Where(f => f.EmpresaId == empresaId);
         if (desde.HasValue) query = query.Where(f => f.FechaEmision >= desde.Value);
         if (hasta.HasValue) query = query.Where(f => f.FechaEmision <= hasta.Value);
-        var facturas = await query.OrderByDescending(f => f.FechaEmision).ToListAsync();
-        return facturas.Select(MapFacturaToDto).ToList();
+        return (await query.OrderByDescending(f => f.FechaEmision).ToListAsync()).Select(MapFacturaToDto).ToList();
     }
 
     public async Task<CierreDto> CierreDiarioAsync(int empresaId, DateTime fecha)
     {
         var fechaCierre = fecha.Date;
-        var existente = await _db.CierresFacturacion
-            .FirstOrDefaultAsync(c => c.EmpresaId == empresaId && c.TipoCierre == "Diario" && c.FechaCierre == fechaCierre);
-        if (existente != null)
-            throw new InvalidOperationException($"Ya existe un cierre diario para {fechaCierre:yyyy-MM-dd}.");
-        var facturas = await _db.Facturas
-            .Where(f => f.EmpresaId == empresaId && f.FechaEmision.Date == fechaCierre)
-            .ToListAsync();
-        if (!facturas.Any())
-            throw new InvalidOperationException($"No hay facturas para cerrar en {fechaCierre:yyyy-MM-dd}.");
+        if (await _db.CierresFacturacion.AnyAsync(c => c.EmpresaId == empresaId && c.TipoCierre == "Diario" && c.FechaCierre == fechaCierre))
+            throw new InvalidOperationException($"Ya existe un cierre diario para {fechaCierre:yyyy-MM-dd}. Solicite autorización para reabrir.");
+        var facturas = await _db.Facturas.Where(f => f.EmpresaId == empresaId && f.FechaEmision.Date == fechaCierre).ToListAsync();
+        if (!facturas.Any()) throw new InvalidOperationException($"No hay facturas para cerrar en {fechaCierre:yyyy-MM-dd}.");
         var emitidas = facturas.Where(f => f.Estado == "Emitida").ToList();
         var cierre = new CierreFacturacion
         {
             EmpresaId = empresaId, TipoCierre = "Diario", FechaCierre = fechaCierre,
-            TotalFacturasEmitidas = emitidas.Count,
-            TotalFacturasAnuladas = facturas.Count(f => f.Estado == "Anulada"),
-            MontoSubTotal = emitidas.Sum(f => f.SubTotal),
-            MontoExento = emitidas.Sum(f => f.ImporteExento),
-            MontoExonerado = emitidas.Sum(f => f.ImporteExonerado),
-            MontoGravado15 = emitidas.Sum(f => f.ImporteGravado15),
-            MontoISV15 = emitidas.Sum(f => f.ISV15),
-            MontoDescuentos = emitidas.Sum(f => f.Descuento),
+            TotalFacturasEmitidas = emitidas.Count, TotalFacturasAnuladas = facturas.Count(f => f.Estado == "Anulada"),
+            MontoSubTotal = emitidas.Sum(f => f.SubTotal), MontoExento = emitidas.Sum(f => f.ImporteExento),
+            MontoExonerado = emitidas.Sum(f => f.ImporteExonerado), MontoGravado15 = emitidas.Sum(f => f.ImporteGravado15),
+            MontoISV15 = emitidas.Sum(f => f.ISV15), MontoDescuentos = emitidas.Sum(f => f.Descuento),
             MontoTotal = emitidas.Sum(f => f.Total),
             NumeroFacturaInicial = facturas.OrderBy(f => f.NumeroFactura).First().NumeroFactura,
             NumeroFacturaFinal = facturas.OrderBy(f => f.NumeroFactura).Last().NumeroFactura,
@@ -148,38 +126,28 @@ public class FacturacionService : IFacturacionService
         var periodo = $"{anio}-{mes:D2}";
         var primerDia = new DateTime(anio, mes, 1);
         var ultimoDia = primerDia.AddMonths(1).AddDays(-1);
-        var existente = await _db.CierresFacturacion
-            .FirstOrDefaultAsync(c => c.EmpresaId == empresaId && c.TipoCierre == "Mensual" && c.Periodo == periodo);
-        if (existente != null)
-            throw new InvalidOperationException($"Ya existe un cierre mensual para {periodo}.");
+        if (await _db.CierresFacturacion.AnyAsync(c => c.EmpresaId == empresaId && c.TipoCierre == "Mensual" && c.Periodo == periodo))
+            throw new InvalidOperationException($"Ya existe un cierre mensual para {periodo}. Solicite autorización para reabrir.");
         var diasConFacturas = await _db.Facturas
             .Where(f => f.EmpresaId == empresaId && f.FechaEmision >= primerDia && f.FechaEmision <= ultimoDia)
             .Select(f => f.FechaEmision.Date).Distinct().ToListAsync();
-        if (!diasConFacturas.Any())
-            throw new InvalidOperationException($"No hay facturas en el periodo {periodo}.");
+        if (!diasConFacturas.Any()) throw new InvalidOperationException($"No hay facturas en el periodo {periodo}.");
         var diasConCierre = await _db.CierresFacturacion
-            .Where(c => c.EmpresaId == empresaId && c.TipoCierre == "Diario"
-                && c.FechaCierre >= primerDia && c.FechaCierre <= ultimoDia)
+            .Where(c => c.EmpresaId == empresaId && c.TipoCierre == "Diario" && c.FechaCierre >= primerDia && c.FechaCierre <= ultimoDia)
             .Select(c => c.FechaCierre.Date).ToListAsync();
         var diasSinCierre = diasConFacturas.Except(diasConCierre).OrderBy(d => d).ToList();
         if (diasSinCierre.Any())
-            throw new InvalidOperationException(
-                $"Faltan cierres diarios para: {string.Join(", ", diasSinCierre.Select(d => d.ToString("yyyy-MM-dd")))}");
+            throw new InvalidOperationException($"Faltan cierres diarios para: {string.Join(", ", diasSinCierre.Select(d => d.ToString("yyyy-MM-dd")))}");
         var cierresDiarios = await _db.CierresFacturacion
-            .Where(c => c.EmpresaId == empresaId && c.TipoCierre == "Diario"
-                && c.FechaCierre >= primerDia && c.FechaCierre <= ultimoDia)
-            .ToListAsync();
+            .Where(c => c.EmpresaId == empresaId && c.TipoCierre == "Diario" && c.FechaCierre >= primerDia && c.FechaCierre <= ultimoDia).ToListAsync();
         var cierre = new CierreFacturacion
         {
             EmpresaId = empresaId, TipoCierre = "Mensual", FechaCierre = ultimoDia, Periodo = periodo,
             TotalFacturasEmitidas = cierresDiarios.Sum(c => c.TotalFacturasEmitidas),
             TotalFacturasAnuladas = cierresDiarios.Sum(c => c.TotalFacturasAnuladas),
-            MontoSubTotal = cierresDiarios.Sum(c => c.MontoSubTotal),
-            MontoExento = cierresDiarios.Sum(c => c.MontoExento),
-            MontoExonerado = cierresDiarios.Sum(c => c.MontoExonerado),
-            MontoGravado15 = cierresDiarios.Sum(c => c.MontoGravado15),
-            MontoISV15 = cierresDiarios.Sum(c => c.MontoISV15),
-            MontoDescuentos = cierresDiarios.Sum(c => c.MontoDescuentos),
+            MontoSubTotal = cierresDiarios.Sum(c => c.MontoSubTotal), MontoExento = cierresDiarios.Sum(c => c.MontoExento),
+            MontoExonerado = cierresDiarios.Sum(c => c.MontoExonerado), MontoGravado15 = cierresDiarios.Sum(c => c.MontoGravado15),
+            MontoISV15 = cierresDiarios.Sum(c => c.MontoISV15), MontoDescuentos = cierresDiarios.Sum(c => c.MontoDescuentos),
             MontoTotal = cierresDiarios.Sum(c => c.MontoTotal),
             NumeroFacturaInicial = cierresDiarios.OrderBy(c => c.FechaCierre).First().NumeroFacturaInicial,
             NumeroFacturaFinal = cierresDiarios.OrderBy(c => c.FechaCierre).Last().NumeroFacturaFinal,
@@ -193,15 +161,123 @@ public class FacturacionService : IFacturacionService
     public async Task<List<CierreDto>> ListarCierresAsync(int empresaId, string? tipoCierre)
     {
         var query = _db.CierresFacturacion.Where(c => c.EmpresaId == empresaId);
-        if (!string.IsNullOrEmpty(tipoCierre))
-            query = query.Where(c => c.TipoCierre == tipoCierre);
-        var cierres = await query.OrderByDescending(c => c.FechaCierre).ToListAsync();
-        return cierres.Select(MapCierreToDto).ToList();
+        if (!string.IsNullOrEmpty(tipoCierre)) query = query.Where(c => c.TipoCierre == tipoCierre);
+        return (await query.OrderByDescending(c => c.FechaCierre).ToListAsync()).Select(MapCierreToDto).ToList();
     }
 
+    // ==================== AUTORIZACIONES DE REPROCESO ====================
+
+    public async Task<AutorizacionDto> SolicitarReprocesoAsync(int empresaId, SolicitarReprocesoDto dto)
+    {
+        DateTime fechaCierre;
+        string? periodo = null;
+        if (dto.TipoCierre == "Diario")
+        {
+            if (!dto.Fecha.HasValue) throw new InvalidOperationException("Debe indicar la fecha para cierre diario.");
+            fechaCierre = dto.Fecha.Value.Date;
+            if (!await _db.CierresFacturacion.AnyAsync(c => c.EmpresaId == empresaId && c.TipoCierre == "Diario" && c.FechaCierre == fechaCierre))
+                throw new InvalidOperationException($"No existe cierre diario para {fechaCierre:yyyy-MM-dd}.");
+        }
+        else if (dto.TipoCierre == "Mensual")
+        {
+            if (!dto.Anio.HasValue || !dto.Mes.HasValue) throw new InvalidOperationException("Debe indicar año y mes para cierre mensual.");
+            periodo = $"{dto.Anio.Value}-{dto.Mes.Value:D2}";
+            fechaCierre = new DateTime(dto.Anio.Value, dto.Mes.Value, 1).AddMonths(1).AddDays(-1);
+            if (!await _db.CierresFacturacion.AnyAsync(c => c.EmpresaId == empresaId && c.TipoCierre == "Mensual" && c.Periodo == periodo))
+                throw new InvalidOperationException($"No existe cierre mensual para {periodo}.");
+        }
+        else throw new InvalidOperationException("TipoCierre debe ser 'Diario' o 'Mensual'.");
+
+        // Verificar que no haya solicitud pendiente
+        if (await _db.AutorizacionesReproceso.AnyAsync(a => a.EmpresaId == empresaId && a.TipoCierre == dto.TipoCierre
+            && a.FechaCierre == fechaCierre && a.Estado == "Pendiente"))
+            throw new InvalidOperationException("Ya existe una solicitud pendiente para este cierre.");
+
+        var auth = new AutorizacionReproceso
+        {
+            EmpresaId = empresaId, TipoCierre = dto.TipoCierre, FechaCierre = fechaCierre,
+            Periodo = periodo, Motivo = dto.Motivo, SolicitadoPor = dto.SolicitadoPor,
+            FechaSolicitud = DateTime.UtcNow, Estado = "Pendiente"
+        };
+        _db.AutorizacionesReproceso.Add(auth);
+        await _db.SaveChangesAsync();
+        return MapAuthToDto(auth);
+    }
+
+    public async Task<AutorizacionDto> AprobarReprocesoAsync(int empresaId, int autorizacionId, AprobarReprocesoDto dto)
+    {
+        var auth = await _db.AutorizacionesReproceso.FirstOrDefaultAsync(a => a.Id == autorizacionId && a.EmpresaId == empresaId);
+        if (auth == null) throw new InvalidOperationException("Autorización no encontrada.");
+        if (auth.Estado != "Pendiente") throw new InvalidOperationException($"La autorización ya fue {auth.Estado.ToLower()}.");
+        auth.Estado = "Aprobada";
+        auth.AprobadoPor = dto.AprobadoPor;
+        auth.FechaResolucion = DateTime.UtcNow;
+        auth.ObservacionResolucion = dto.Observacion;
+        auth.CodigoAutorizacion = $"AUTH-{Guid.NewGuid().ToString("N")[..12].ToUpper()}";
+        await _db.SaveChangesAsync();
+        return MapAuthToDto(auth);
+    }
+
+    public async Task<AutorizacionDto> RechazarReprocesoAsync(int empresaId, int autorizacionId, RechazarReprocesoDto dto)
+    {
+        var auth = await _db.AutorizacionesReproceso.FirstOrDefaultAsync(a => a.Id == autorizacionId && a.EmpresaId == empresaId);
+        if (auth == null) throw new InvalidOperationException("Autorización no encontrada.");
+        if (auth.Estado != "Pendiente") throw new InvalidOperationException($"La autorización ya fue {auth.Estado.ToLower()}.");
+        auth.Estado = "Rechazada";
+        auth.AprobadoPor = dto.AprobadoPor;
+        auth.FechaResolucion = DateTime.UtcNow;
+        auth.ObservacionResolucion = dto.Observacion;
+        await _db.SaveChangesAsync();
+        return MapAuthToDto(auth);
+    }
+
+    public async Task<List<AutorizacionDto>> ListarAutorizacionesAsync(int empresaId, string? estado)
+    {
+        var query = _db.AutorizacionesReproceso.Where(a => a.EmpresaId == empresaId);
+        if (!string.IsNullOrEmpty(estado)) query = query.Where(a => a.Estado == estado);
+        return (await query.OrderByDescending(a => a.FechaSolicitud).ToListAsync()).Select(MapAuthToDto).ToList();
+    }
+
+    public async Task ReabrirCierreDiarioAsync(int empresaId, DateTime fecha, string codigoAutorizacion)
+    {
+        var fechaCierre = fecha.Date;
+        var auth = await ValidarAutorizacion(empresaId, "Diario", fechaCierre, codigoAutorizacion);
+        var periodo = $"{fechaCierre.Year}-{fechaCierre.Month:D2}";
+        if (await _db.CierresFacturacion.AnyAsync(c => c.EmpresaId == empresaId && c.TipoCierre == "Mensual" && c.Periodo == periodo))
+            throw new InvalidOperationException($"No se puede reabrir: existe cierre mensual para {periodo}. Reabra el mensual primero.");
+        var cierre = await _db.CierresFacturacion.FirstOrDefaultAsync(c => c.EmpresaId == empresaId && c.TipoCierre == "Diario" && c.FechaCierre == fechaCierre);
+        if (cierre == null) throw new InvalidOperationException($"No existe cierre diario para {fechaCierre:yyyy-MM-dd}.");
+        _db.CierresFacturacion.Remove(cierre);
+        auth.Utilizada = true;
+        await _db.SaveChangesAsync();
+    }
+
+    public async Task ReabrirCierreMensualAsync(int empresaId, int anio, int mes, string codigoAutorizacion)
+    {
+        var periodo = $"{anio}-{mes:D2}";
+        var ultimoDia = new DateTime(anio, mes, 1).AddMonths(1).AddDays(-1);
+        var auth = await ValidarAutorizacion(empresaId, "Mensual", ultimoDia, codigoAutorizacion);
+        var cierre = await _db.CierresFacturacion.FirstOrDefaultAsync(c => c.EmpresaId == empresaId && c.TipoCierre == "Mensual" && c.Periodo == periodo);
+        if (cierre == null) throw new InvalidOperationException($"No existe cierre mensual para {periodo}.");
+        _db.CierresFacturacion.Remove(cierre);
+        auth.Utilizada = true;
+        await _db.SaveChangesAsync();
+    }
+
+    private async Task<AutorizacionReproceso> ValidarAutorizacion(int empresaId, string tipoCierre, DateTime fechaCierre, string codigo)
+    {
+        var auth = await _db.AutorizacionesReproceso.FirstOrDefaultAsync(a =>
+            a.EmpresaId == empresaId && a.CodigoAutorizacion == codigo && a.TipoCierre == tipoCierre && a.FechaCierre == fechaCierre);
+        if (auth == null) throw new InvalidOperationException("Código de autorización inválido o no corresponde a este cierre.");
+        if (auth.Estado != "Aprobada") throw new InvalidOperationException("La autorización no está aprobada.");
+        if (auth.Utilizada) throw new InvalidOperationException("Este código de autorización ya fue utilizado.");
+        return auth;
+    }
+
+    // ==================== MAPPERS ====================
+
     private static FacturaDto MapFacturaFromReader(System.Data.Common.DbDataReader r) => new(
-        Id: r.GetInt32(r.GetOrdinal("Id")),
-        NumeroFactura: r.GetString(r.GetOrdinal("NumeroFactura")),
+        Id: r.GetInt32(r.GetOrdinal("Id")), NumeroFactura: r.GetString(r.GetOrdinal("NumeroFactura")),
         Modalidad: r.GetString(r.GetOrdinal("Modalidad")),
         EmisorRazonSocial: r.GetString(r.GetOrdinal("EmisorRazonSocial")),
         EmisorRTN: r.GetString(r.GetOrdinal("EmisorRTN")),
@@ -226,10 +302,8 @@ public class FacturacionService : IFacturacionService
         NumeroOrdenCompraExenta: r.IsDBNull(r.GetOrdinal("NumeroOrdenCompraExenta")) ? null : r.GetString(r.GetOrdinal("NumeroOrdenCompraExenta")),
         NumeroConstanciaRegistroExonerados: r.IsDBNull(r.GetOrdinal("NumeroConstanciaRegistroExonerados")) ? null : r.GetString(r.GetOrdinal("NumeroConstanciaRegistroExonerados")),
         NumeroRegistroSAG: r.IsDBNull(r.GetOrdinal("NumeroRegistroSAG")) ? null : r.GetString(r.GetOrdinal("NumeroRegistroSAG")),
-        ColorPrimario: "#1B5E20",
-        ColorSecundario: "#E8F5E9",
-        Detalles: new List<DetalleFacturaDto>()
-    );
+        ColorPrimario: "#1B5E20", ColorSecundario: "#E8F5E9",
+        Detalles: new List<DetalleFacturaDto>());
 
     private static FacturaDto MapFacturaToDto(Factura f) => new(
         Id: f.Id, NumeroFactura: f.NumeroFactura, Modalidad: f.Modalidad,
@@ -237,8 +311,7 @@ public class FacturacionService : IFacturacionService
         EmisorNombreComercial: f.Empresa.NombreComercial,
         EmisorDireccion: f.Empresa.DireccionCasaMatriz,
         EmisorTelefono: f.Empresa.Telefono, EmisorCorreo: f.Empresa.Correo,
-        NumeroCai: f.CAI.NumeroCai,
-        RangoAutorizado: $"{f.CAI.RangoInicial} a {f.CAI.RangoFinal}",
+        NumeroCai: f.CAI.NumeroCai, RangoAutorizado: $"{f.CAI.RangoInicial} a {f.CAI.RangoFinal}",
         FechaLimiteEmision: f.CAI.FechaLimiteEmision,
         ClienteNombre: f.Cliente.Nombre, ClienteRTN: f.Cliente.RTN,
         FechaEmision: f.FechaEmision, SubTotal: f.SubTotal,
@@ -248,19 +321,21 @@ public class FacturacionService : IFacturacionService
         NumeroOrdenCompraExenta: f.NumeroOrdenCompraExenta,
         NumeroConstanciaRegistroExonerados: f.NumeroConstanciaRegistroExonerados,
         NumeroRegistroSAG: f.NumeroRegistroSAG,
-        ColorPrimario: f.Empresa.ColorPrimario,
-        ColorSecundario: f.Empresa.ColorSecundario,
+        ColorPrimario: f.Empresa.ColorPrimario, ColorSecundario: f.Empresa.ColorSecundario,
         Detalles: f.Detalles.Select(d => new DetalleFacturaDto(
             d.Id, d.Producto.Codigo, d.Producto.Descripcion,
-            d.Cantidad, d.PrecioUnitario, d.Descuento,
-            d.SubTotal, d.ISV, d.Total)).ToList()
-    );
+            d.Cantidad, d.PrecioUnitario, d.Descuento, d.SubTotal, d.ISV, d.Total)).ToList());
 
     private static CierreDto MapCierreToDto(CierreFacturacion c) => new(
         c.Id, c.EmpresaId, c.TipoCierre, c.FechaCierre, c.Periodo,
         c.TotalFacturasEmitidas, c.TotalFacturasAnuladas,
         c.MontoSubTotal, c.MontoExento, c.MontoExonerado,
         c.MontoGravado15, c.MontoISV15, c.MontoDescuentos, c.MontoTotal,
-        c.NumeroFacturaInicial, c.NumeroFacturaFinal, c.FechaGeneracion
-    );
+        c.NumeroFacturaInicial, c.NumeroFacturaFinal, c.FechaGeneracion);
+
+    private static AutorizacionDto MapAuthToDto(AutorizacionReproceso a) => new(
+        a.Id, a.EmpresaId, a.TipoCierre, a.FechaCierre, a.Periodo,
+        a.Motivo, a.SolicitadoPor, a.FechaSolicitud,
+        a.Estado, a.AprobadoPor, a.FechaResolucion,
+        a.ObservacionResolucion, a.CodigoAutorizacion, a.Utilizada);
 }

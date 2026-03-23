@@ -52,6 +52,18 @@ BEGIN
     IF @NumeroOrdenCompraExenta IS NOT NULL AND LEN(@NumeroOrdenCompraExenta) > 0
         SET @EsExonerado = 1;
 
+    -- Validar que no exista cierre diario para hoy
+    IF EXISTS (
+        SELECT 1 FROM CierresFacturacion
+        WHERE EmpresaId = @EmpresaId
+          AND TipoCierre = 'Diario'
+          AND FechaCierre = CAST(GETUTCDATE() AS DATE)
+    )
+    BEGIN
+        RAISERROR('No se puede facturar: ya existe un cierre diario para la fecha de hoy.', 16, 1);
+        RETURN;
+    END
+
     BEGIN TRANSACTION;
 
     -- Obtener CAI activo con bloqueo para evitar duplicados en concurrencia
@@ -72,6 +84,18 @@ BEGIN
     BEGIN
         ROLLBACK;
         RAISERROR('No hay CAI activo disponible para esta empresa.', 16, 1);
+        RETURN;
+    END
+
+    -- Validar que el correlativo no exceda el rango final
+    DECLARE @RangoFinalNum INT;
+    SELECT @RangoFinalNum = CAST(RIGHT(RangoFinal, 8) AS INT) FROM CAIs WHERE Id = @CAIId;
+    IF @Correlativo > @RangoFinalNum
+    BEGIN
+        -- Desactivar CAI agotado
+        UPDATE CAIs SET Activo = 0 WHERE Id = @CAIId;
+        ROLLBACK;
+        RAISERROR('El CAI ha agotado su rango de numeración. Se desactivó automáticamente. Registre un nuevo CAI.', 16, 1);
         RETURN;
     END
 

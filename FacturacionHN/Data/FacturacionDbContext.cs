@@ -14,6 +14,7 @@ public class FacturacionDbContext : DbContext
     public DbSet<Factura> Facturas => Set<Factura>();
     public DbSet<DetalleFactura> DetalleFacturas => Set<DetalleFactura>();
     public DbSet<CierreFacturacion> CierresFacturacion => Set<CierreFacturacion>();
+    public DbSet<AutorizacionReproceso> AutorizacionesReproceso => Set<AutorizacionReproceso>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -94,5 +95,14 @@ public class FacturacionDbContext : DbContext
 
         modelBuilder.Entity<CierreFacturacion>()
             .HasIndex(c => new { c.EmpresaId, c.TipoCierre, c.FechaCierre }).IsUnique();
+
+        modelBuilder.Entity<AutorizacionReproceso>()
+            .HasOne(a => a.Empresa)
+            .WithMany()
+            .HasForeignKey(a => a.EmpresaId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<AutorizacionReproceso>()
+            .HasIndex(a => a.CodigoAutorizacion).IsUnique().HasFilter("[CodigoAutorizacion] IS NOT NULL");
     }
 }

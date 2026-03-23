@@ -87,4 +87,53 @@ public class FacturasController : ControllerBase
     [HttpGet("cierres")]
     public async Task<ActionResult<List<CierreDto>>> ListarCierres(int empresaId, [FromQuery] string? tipo)
         => Ok(await _service.ListarCierresAsync(empresaId, tipo));
+
+    // --- Autorizaciones de Reproceso ---
+
+    [HttpPost("cierres/reproceso/solicitar")]
+    public async Task<ActionResult<AutorizacionDto>> SolicitarReproceso(int empresaId, SolicitarReprocesoDto dto)
+    {
+        try { return Ok(await _service.SolicitarReprocesoAsync(empresaId, dto)); }
+        catch (InvalidOperationException ex) { return BadRequest(new { error = ex.Message }); }
+    }
+
+    [HttpPut("cierres/reproceso/{autorizacionId}/aprobar")]
+    public async Task<ActionResult<AutorizacionDto>> AprobarReproceso(int empresaId, int autorizacionId, AprobarReprocesoDto dto)
+    {
+        try { return Ok(await _service.AprobarReprocesoAsync(empresaId, autorizacionId, dto)); }
+        catch (InvalidOperationException ex) { return BadRequest(new { error = ex.Message }); }
+    }
+
+    [HttpPut("cierres/reproceso/{autorizacionId}/rechazar")]
+    public async Task<ActionResult<AutorizacionDto>> RechazarReproceso(int empresaId, int autorizacionId, RechazarReprocesoDto dto)
+    {
+        try { return Ok(await _service.RechazarReprocesoAsync(empresaId, autorizacionId, dto)); }
+        catch (InvalidOperationException ex) { return BadRequest(new { error = ex.Message }); }
+    }
+
+    [HttpGet("cierres/reproceso")]
+    public async Task<ActionResult<List<AutorizacionDto>>> ListarAutorizaciones(int empresaId, [FromQuery] string? estado)
+        => Ok(await _service.ListarAutorizacionesAsync(empresaId, estado));
+
+    [HttpDelete("cierres/diario")]
+    public async Task<IActionResult> ReabrirCierreDiario(int empresaId, ReabrirConAutorizacionDto request, [FromQuery] DateTime fecha)
+    {
+        try
+        {
+            await _service.ReabrirCierreDiarioAsync(empresaId, fecha, request.CodigoAutorizacion);
+            return Ok(new { mensaje = $"Cierre diario {fecha:yyyy-MM-dd} reabierto con autorización." });
+        }
+        catch (InvalidOperationException ex) { return BadRequest(new { error = ex.Message }); }
+    }
+
+    [HttpDelete("cierres/mensual")]
+    public async Task<IActionResult> ReabrirCierreMensual(int empresaId, ReabrirConAutorizacionDto request, [FromQuery] int anio, [FromQuery] int mes)
+    {
+        try
+        {
+            await _service.ReabrirCierreMensualAsync(empresaId, anio, mes, request.CodigoAutorizacion);
+            return Ok(new { mensaje = $"Cierre mensual {anio}-{mes:D2} reabierto con autorización." });
+        }
+        catch (InvalidOperationException ex) { return BadRequest(new { error = ex.Message }); }
+    }
 }
