@@ -1,0 +1,10 @@
+.vs/
+bin/
+obj/
+*.user
+*.suo
+*.cache
+*.dll
+*.pdb
+*.exe
+appsettings.Development.json

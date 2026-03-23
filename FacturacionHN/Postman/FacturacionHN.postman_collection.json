@@ -1,0 +1,298 @@
+{
+  "info": {
+    "name": "Facturación Honduras API",
+    "description": "API REST Multi-tenant de Facturación conforme al SAR de Honduras",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "https://localhost:7063" },
+    { "key": "empresaId", "value": "1" }
+  ],
+  "item": [
+    {
+      "name": "Empresas",
+      "item": [
+        {
+          "name": "Listar Empresas",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/empresas" }
+        },
+        {
+          "name": "Obtener Empresa por ID",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/empresas/{{empresaId}}" }
+        },
+        {
+          "name": "Crear Empresa 1 (TecCatracha)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/empresas",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"razonSocial\": \"Tecnología Catracha S.A. de C.V.\",\n  \"rtn\": \"08019000123456\",\n  \"nombreComercial\": \"TecCatracha\",\n  \"direccionCasaMatriz\": \"Col. Palmira, Blvd. Morazán, Tegucigalpa\",\n  \"telefono\": \"2232-0000\",\n  \"correo\": \"facturacion@teccatracha.hn\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Crear Empresa 2 (ComSampedrana)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/empresas",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"razonSocial\": \"Comercial Sampedrana S.A.\",\n  \"rtn\": \"05019500654321\",\n  \"nombreComercial\": \"ComSampedrana\",\n  \"direccionCasaMatriz\": \"Barrio Guamilito, 3ra Avenida, San Pedro Sula\",\n  \"telefono\": \"2553-0000\",\n  \"correo\": \"facturacion@comsampedrana.hn\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Clientes",
+      "item": [
+        {
+          "name": "Listar Clientes",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/empresas/{{empresaId}}/clientes" }
+        },
+        {
+          "name": "Obtener Cliente por ID",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/empresas/{{empresaId}}/clientes/1" }
+        },
+        {
+          "name": "Crear Cliente",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/empresas/{{empresaId}}/clientes",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"empresaId\": 1,\n  \"rtn\": \"08011985123456\",\n  \"nombre\": \"Distribuidora Honduras S.A.\",\n  \"direccion\": \"Col. Palmira, Tegucigalpa\",\n  \"correo\": \"info@distribuidorahn.com\",\n  \"telefono\": \"2232-5678\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Actualizar Cliente",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/api/empresas/{{empresaId}}/clientes/1",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Distribuidora Honduras (Actualizado)\",\n  \"direccion\": \"Col. Palmira, Tegucigalpa\",\n  \"correo\": \"nuevo@distribuidorahn.com\",\n  \"telefono\": \"2232-9999\",\n  \"activo\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "Desactivar Cliente",
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/api/empresas/{{empresaId}}/clientes/1" }
+        }
+      ]
+    },
+    {
+      "name": "Productos",
+      "item": [
+        {
+          "name": "Listar Productos",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/empresas/{{empresaId}}/productos" }
+        },
+        {
+          "name": "Obtener Producto por ID",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/empresas/{{empresaId}}/productos/1" }
+        },
+        {
+          "name": "Crear Producto (Gravado ISV)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/empresas/{{empresaId}}/productos",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"empresaId\": 1,\n  \"codigo\": \"PROD-001\",\n  \"descripcion\": \"Laptop HP 15 pulgadas\",\n  \"precio\": 18500.00,\n  \"gravadoISV\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "Crear Producto (Exento ISV)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/empresas/{{empresaId}}/productos",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"empresaId\": 1,\n  \"codigo\": \"SERV-001\",\n  \"descripcion\": \"Servicio de consultoría (exento)\",\n  \"precio\": 5000.00,\n  \"gravadoISV\": false\n}"
+            }
+          }
+        },
+        {
+          "name": "Actualizar Producto",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/api/empresas/{{empresaId}}/productos/1",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"descripcion\": \"Laptop HP 15 pulgadas (2026)\",\n  \"precio\": 19500.00,\n  \"gravadoISV\": true,\n  \"activo\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "Desactivar Producto",
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/api/empresas/{{empresaId}}/productos/1" }
+        }
+      ]
+    },
+    {
+      "name": "CAIs",
+      "item": [
+        {
+          "name": "Listar CAIs",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/empresas/{{empresaId}}/cais" }
+        },
+        {
+          "name": "Obtener CAI por ID",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/empresas/{{empresaId}}/cais/1" }
+        },
+        {
+          "name": "Crear CAI",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/empresas/{{empresaId}}/cais",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"empresaId\": 1,\n  \"numeroCai\": \"A1B2C3-D4E5F6-G7H8I9-J0K1L2-M3N4O5-P6\",\n  \"rangoInicial\": \"000-001-01-00000001\",\n  \"rangoFinal\": \"000-001-01-00500000\",\n  \"fechaLimiteEmision\": \"2027-12-31T00:00:00\",\n  \"sucursalCodigo\": \"000\",\n  \"puntoEmisionCodigo\": \"001\",\n  \"tipoDocumento\": \"01\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Desactivar CAI",
+          "request": { "method": "PUT", "url": "{{baseUrl}}/api/empresas/{{empresaId}}/cais/1/desactivar" }
+        }
+      ]
+    },
+    {
+      "name": "Facturas",
+      "item": [
+        {
+          "name": "Listar Facturas",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/empresas/{{empresaId}}/facturas?desde=2024-01-01&hasta=2027-12-31",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "empresas", "{{empresaId}}", "facturas"],
+              "query": [
+                { "key": "desde", "value": "2024-01-01" },
+                { "key": "hasta", "value": "2027-12-31" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Obtener Factura por ID",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/empresas/{{empresaId}}/facturas/1" }
+        },
+        {
+          "name": "Crear Factura (Normal con ISV)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/empresas/{{empresaId}}/facturas",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"empresaId\": 1,\n  \"clienteId\": 1,\n  \"modalidad\": \"Autoimpresor\",\n  \"detalles\": [\n    { \"productoId\": 1, \"cantidad\": 1, \"descuento\": 0 },\n    { \"productoId\": 2, \"cantidad\": 2, \"descuento\": 50 },\n    { \"productoId\": 5, \"cantidad\": 1, \"descuento\": 0 }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Crear Factura (Cliente Exonerado)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/empresas/{{empresaId}}/facturas",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"empresaId\": 1,\n  \"clienteId\": 2,\n  \"modalidad\": \"Autoimpresor\",\n  \"numeroOrdenCompraExenta\": \"OCE-2026-001\",\n  \"numeroConstanciaRegistroExonerados\": \"CRE-2026-0045\",\n  \"numeroRegistroSAG\": \"SAG-12345\",\n  \"detalles\": [\n    { \"productoId\": 1, \"cantidad\": 3, \"descuento\": 500 },\n    { \"productoId\": 3, \"cantidad\": 5, \"descuento\": 0 }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Crear Factura (Modalidad Imprenta)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/empresas/{{empresaId}}/facturas",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"empresaId\": 1,\n  \"clienteId\": 3,\n  \"modalidad\": \"Imprenta\",\n  \"detalles\": [\n    { \"productoId\": 4, \"cantidad\": 10, \"descuento\": 0 }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Anular Factura",
+          "request": { "method": "PUT", "url": "{{baseUrl}}/api/empresas/{{empresaId}}/facturas/1/anular" }
+        },
+        {
+          "name": "Descargar Factura PDF",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/empresas/{{empresaId}}/facturas/1/pdf" }
+        }
+      ]
+    },
+    {
+      "name": "Cierres de Facturación",
+      "item": [
+        {
+          "name": "Cierre Diario",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/empresas/{{empresaId}}/facturas/cierres/diario",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fecha\": \"2026-03-23T00:00:00\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Cierre Mensual",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/empresas/{{empresaId}}/facturas/cierres/mensual",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"anio\": 2026,\n  \"mes\": 3\n}"
+            }
+          }
+        },
+        {
+          "name": "Listar Cierres (Todos)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/empresas/{{empresaId}}/facturas/cierres" }
+        },
+        {
+          "name": "Listar Cierres Diarios",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/empresas/{{empresaId}}/facturas/cierres?tipo=Diario",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "empresas", "{{empresaId}}", "facturas", "cierres"],
+              "query": [{ "key": "tipo", "value": "Diario" }]
+            }
+          }
+        },
+        {
+          "name": "Listar Cierres Mensuales",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/empresas/{{empresaId}}/facturas/cierres?tipo=Mensual",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "empresas", "{{empresaId}}", "facturas", "cierres"],
+              "query": [{ "key": "tipo", "value": "Mensual" }]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
