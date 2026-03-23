@@ -13,6 +13,7 @@ API REST desarrollada en .NET 9 para gestión de facturación fiscal conforme al
 - Generación de PDF con colores personalizados por empresa
 - Stored Procedures para operaciones críticas (creación y anulación)
 - Cierres de facturación diarios y mensuales
+- Autorización gerencial para reproceso (reapertura de cierres)
 - Colección de Postman incluida para pruebas
 
 ## Requisitos
@@ -43,6 +44,7 @@ Scripts/05_SP_AnularFactura.sql  -- SP para anular facturas
 Scripts/06_SP_CierreDiario.sql   -- SP para cierre diario
 Scripts/07_SP_CierreMensual.sql  -- SP para cierre mensual
 Scripts/08_Migracion_ColoresEmpresa.sql -- Agrega campos de color a Empresas
+Scripts/09_Tabla_AutorizacionReproceso.sql -- Tabla de autorizaciones de reproceso
 ```
 
 ### 3. Configurar el connection string
@@ -226,6 +228,8 @@ GET /api/empresas/1/facturas/1/pdf
 | POST | `/api/empresas/{empresaId}/facturas/cierres/diario` | Cierre diario |
 | POST | `/api/empresas/{empresaId}/facturas/cierres/mensual` | Cierre mensual |
 | GET | `/api/empresas/{empresaId}/facturas/cierres?tipo=Diario` | Listar cierres |
+| DELETE | `/api/empresas/{empresaId}/facturas/cierres/diario?fecha=2026-03-23` | Reabrir cierre diario (requiere código) |
+| DELETE | `/api/empresas/{empresaId}/facturas/cierres/mensual?anio=2026&mes=3` | Reabrir cierre mensual (requiere código) |
 
 **Cierre diario:**
 ```json
@@ -246,6 +250,64 @@ POST /api/empresas/1/facturas/cierres/mensual
 
 > El cierre mensual requiere que todos los días con facturas del mes tengan cierre diario.
 
+**Reabrir cierre (con código de autorización):**
+```json
+DELETE /api/empresas/1/facturas/cierres/diario?fecha=2026-03-23
+{
+  "codigoAutorizacion": "AUTH-XXXXXXXXXXXX"
+}
+```
+
+> Para reabrir un cierre diario no debe existir cierre mensual del mismo mes. Para reabrir un mensual, los cierres diarios se mantienen.
+
+### Autorizaciones de Reproceso
+
+Sistema de autorización gerencial para reabrir cierres de facturación.
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| POST | `.../cierres/reproceso/solicitar` | Solicitar reapertura |
+| PUT | `.../cierres/reproceso/{id}/aprobar` | Aprobar (genera código) |
+| PUT | `.../cierres/reproceso/{id}/rechazar` | Rechazar solicitud |
+| GET | `.../cierres/reproceso?estado=Pendiente` | Listar autorizaciones |
+
+**Flujo de reproceso:**
+
+1. Un usuario solicita la reapertura indicando motivo:
+```json
+POST /api/empresas/1/facturas/cierres/reproceso/solicitar
+{
+  "tipoCierre": "Diario",
+  "fecha": "2026-03-23",
+  "motivo": "Se necesita agregar una factura que no se registró",
+  "solicitadoPor": "Juan Pérez"
+}
+```
+
+2. Un gerente aprueba y el sistema genera un código único:
+```json
+PUT /api/empresas/1/facturas/cierres/reproceso/1/aprobar
+{
+  "aprobadoPor": "Gerente Financiero",
+  "observacion": "Autorizado para corrección"
+}
+```
+> La respuesta incluye el `codigoAutorizacion` (ej: `AUTH-A1B2C3D4E5F6`). Este código es de un solo uso.
+
+3. Con el código, se ejecuta la reapertura del cierre (ver sección Cierres).
+
+**Para reproceso mensual:**
+```json
+POST /api/empresas/1/facturas/cierres/reproceso/solicitar
+{
+  "tipoCierre": "Mensual",
+  "anio": 2026,
+  "mes": 3,
+  "motivo": "Corrección de cierres diarios del mes",
+  "solicitadoPor": "Juan Pérez"
+}
+```
+
 ## Flujo Completo de Uso
 
 1. **Crear empresa** con datos del emisor (razón social, RTN, dirección, colores)
@@ -256,6 +318,7 @@ POST /api/empresas/1/facturas/cierres/mensual
 6. **Descargar PDF** de la factura generada
 7. **Cierre diario** al final del día
 8. **Cierre mensual** al final del mes (consolida los cierres diarios)
+9. **Reproceso** (si se necesita reabrir un cierre): Solicitar → Aprobar → Reabrir con código
 
 ## Estructura del Proyecto
 
